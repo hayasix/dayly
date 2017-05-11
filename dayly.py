@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
 # vim: set fileencoding=utf-8 fileformat=unix :
 
-"""Post an entry in Dayly repository in Dropbox synced folder.
+"""{script}: Post an entry in Dayly repository in Dropbox synced folder.
 
-Usage: {script} [options]
+Usage: {script} [options] [LOCATION]
 
 Options:
     -h, --help              show this
-    --datetime <timespec>   set timestamp   YYYYmmddTHHMMSS
-    --timestamp <timespec>  set timestamp   YYYYmmddTHHMMSS
-    --address <text>        set address
-    --latitude <n>          set latitude    [+-]NNN.NNNN (degree)
-    --longitude <n>         set longitude   [+-]NNN.NNNN (degree)
-    --altitude <n>          set altitude    [+-]NNNN (meter)
-    --humidity <n>          set humidity    0..100 (percent)
-    --temperature <n>       set temperature [+-]NNN (Fahrenheit)
-    --skyline <text>        set skyline
-    --weather <text>        set weather
-    --photo <path>          set photo read from <path>
-    --language <lang>       set language for address/weather
     --conf <path>           read settings from <path> [default: ~/.dayly]
+    --datetime <timespec>   set date and time for entry; YYYYmmddTHHMMSS
+    --photo <path>          attach photo
+    --language <lang>       set language for address/weather
     --debug                 don't write actually
     --version               show script version
+
+Location:
+    LOCATION is defined in the settings file specified with option --conf.
+
+Time Zone:
+    <timespec> does NOT have time zone; every <timespec> is deemed to be
+    the local time.
 """
 
 
@@ -30,15 +28,13 @@ import os
 import shutil
 import time
 import random
-import json
-from urllib.parse import quote
-from urllib.request import urlopen
-from urllib.error import URLError
+from configparser import ConfigParser, NoOptionError
 
-from pygeocoder import Geocoder, GeocoderError
+import geocoder
+import pyowm
 
 
-__version__ = "0.5.0"
+__version__ = "0.7.0"
 __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"
@@ -53,217 +49,206 @@ DAYLYENTRYDIR = DAYLYDIR + "/entries"
 
 DEFAULT_TIMEZONE = "Asia/Tokyo"
 
-OWM_APIKEY = "ef3b99de363453dc4ac427cc50df28af"
-OWM_QUERY = ("http://api.openweathermap.org/data/2.5/weather?"
-             "lat={lat}&lon={lon}&appid={apikey}")
+LATLONPAT = r"\((?P<lat>[+\-]?\d*(\.\d*)?), *(?P<lon>[+\-]?\d*(\.\d*)?)\)"
 
 
 def sanitized(s):
+    """Sanitize HTML/XML text.
+
+    :param str s: source text
+    :rtype: str
+    :return: sanitized text in which &/</> is replaced with entity refs
+    """
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-class DaylyEntry:
+def newid():
+    """Create a new random ID.
 
-    def __init__(self, idstring):
+    :rtype: str
+    :return: 40 hexadecimal chars representing a newly created ID
+    """
+    return hex(random.randint(0, 256 ** DAYLYIDBYTES))[2:].zfill(40).upper()
+
+
+class DaylyEntry:
+    """Dayly entry"""
+
+    def __init__(self, dt, id=None, language=None):
+        if isinstance(dt, str):
+            dt = dt.translate(str.maketrans("T", " ", ":-"))
+            dt = time.mktime(time.strptime(dt, "%Y%m%d %H%M%S"))
+        elif isinstance(dt, time.struct_time):
+            dt = time.mktime(dt)
+        else:
+            dt = dt or time.time()
+        self.datetime = dt
         self.version = "1.0.3.3"
         self.generated = time.time()
         self._location = None
         self._weather = None
         self._media = []
-        self.id = os.path.splitext(idstring)[0].zfill(DAYLYIDBYTES * 2)
+        self.id = id or os.path.splitext(idstring)[0].zfill(DAYLYIDBYTES * 2)
+        self.language = language
+        self.debug = False
 
     def filename(self):
         return self.id + ".entry"
 
-    def photofilename(self):
-        return "".zfill(DAYLYIDBYTES) + "_" + self.id + ".jpg"
+    def set_location(self, location, language=None,
+            altitude=None, unit="meters"):
+        """Set location via Google geocoding service.
 
-    def set_location(self,
-            address=None, latitude=None, longitude=None, altitude=None):
+        :param tuple/str location:
+        :param str language: language for Google geocoding
+        :param str language: language e.g. 'en', 'ja'
+        :param float altitude: altitude
+        :param str unit: altitude unit e.g. 'meters', 'feet'
+        """
+        language = language or self.language
+        unit = dict(m="meters", ft="feet").get(unit, "meters")
+        kw = {"language": language}
+        if isinstance(location, tuple):
+            kw["method"] = "reverse"
+        location = geocoder.google(location, **kw)
+        if not location.ok: raise ValueError("unknown place")
+        address = location.address
+        if not altitude:
+            altitude = getattr(geocoder.elevation(location.latlng), unit)
         self._location = dict(
                 address=address,
-                latitude=latitude,
-                longitude=longitude,
-                altitude=altitude,
-                )
+                latitude=location.latlng[0],
+                longitude=location.latlng[1],
+                altitude=altitude)
 
-    def set_weather(self,
-            humidity=None, temperature=None, skyline=None, weather=None):
+    def set_weather(self, apikey, language=None):
+        """Get weather information from OpenWeatherMap.
+
+        :param str apikey: OpenWeatherMap API key
+        :param str language: language e.g. 'en', 'ja'
+        """
+        language = language or self.language
+        owm = pyowm.OWM(apikey, language=language)
+        w = owm.weather_at_coords(
+                lat=self._location["latitude"],
+                lon=self._location["longitude"])
+        ww = w.get_weather()
         self._weather = dict(
-                humidity=humidity,
-                temperature=temperature,
-                skyline=skyline,
-                weather=weather,
-                )
+                weather=" ".join(word.capitalize() for word
+                        in ww.get_detailed_status().split()),
+                skyline=ww.get_status(),
+                temperature=ww.get_temperature("fahrenheit")["temp"],
+                humidity=ww.get_humidity() / 100.0)
 
-    def add_media(self, type="photo", filename=None, description=""):
+    def add_media(self, path, type="photo", description=""):
+        ext = os.path.splitext(path)[1].lower()
+        if ext == ".jpg": pass
+        elif ext == ".jpeg": ext = ".jpg"
+        else: raise ValueError("photo must be *.jpg or *.jpeg")
+        while True:
+            newfile = "{}_{}{}".format(newid(), self.id, ext)
+            newpath = os.path.join(DAYLYPHOTODIR, newfile)
+            if not os.path.exists(newpath): break
+        if self.debug: print("----- copy {} to {}".format(path, newpath))
+        else: shutil.copy(path, newpath)
         self._media.append(dict(
             type=type,
-            filename=filename or self.photofilename(),
-            description=description,
-            ))
+            filename=newfile,
+            description=description))
 
     def __str__(self):
-        t = ["<entry>"]
-        def a(indent, k, v=None):
+        t = []
+        indent = 0
+        def _(k, v=None):
             v = v or getattr(self, k, "")
             if v is None: v = "nan"
             t.append("{i}<{k}>{v}</{k}>".format(i=" " * indent, k=k, v=v))
+        def __(k):
+            t.append("{i}<{k}>".format(i=" " * indent, k=k))
         def getattrs(*names):
             for name in names:
                 v = getattr(self, name, None)
                 if v: return v
-            return None
-        a(1, "version")
-        a(1, "generated", int(getattrs("generated", "datetime")))
-        a(1, "id")
-        a(1, "content", sanitized(self.content))
-        a(1, "datetime", int(getattrs("datetime", "generated")))
-        a(1, "timestamp", int(getattrs("timestamp") or -1))
-        a(1, "flags", "0")
-        a(1, "status", "1")
+        __("entry")
+        indent += 1
+        _("version")
+        _("generated", int(getattrs("generated", "datetime")))
+        _("id")
+        _("content", sanitized(self.content))
+        _("datetime", int(getattrs("datetime", "generated")))
+        _("timestamp", int(getattrs("timestamp") or -1))
+        _("flags", "0")
+        _("status", "1")
         if self._location:
-            t.append(" <location>")
-            a(2, "address", self._location["address"])
-            a(2, "latitude", self._location["latitude"])
-            a(2, "longitude", self._location["longitude"])
-            a(2, "altitude", self._location["altitude"])
-            t.append(" </location>")
+            __("location")
+            indent += 1
+            _("address", self._location["address"])
+            _("latitude", self._location["latitude"])
+            _("longitude", self._location["longitude"])
+            _("altitude", self._location["altitude"])
+            indent -= 1
+            __("/location")
         if self._media:
-            t.append(" <media>")
+            __("<media>")
+            indent += 1
             for m in self._media:
-                t.append("  <item>")
-                a(3, "type", m["type"])
-                a(3, "file", m["filename"])
-                a(3, "description", m["description"])
-                t.append("  </item>")
-            t.append(" </media>")
+                __("item")
+                indent += 1
+                _("type", m["type"])
+                _("file", m["filename"])
+                _("description", m["description"])
+                indent -= 1
+                __("/item")
+            indent -= 1
+            __("/media")
         if self._weather:
-            t.append(" <weather>")
-            a(2, "humidity", self._weather["humidity"])
-            a(2, "temperature", self._weather["temperature"])
-            a(2, "skyline", self._weather["skyline"])
-            a(2, "weather", self._weather["weather"])
-            t.append(" </weather>")
-        t.append("</entry>")
+            __("weather")
+            indent += 1
+            _("humidity", self._weather["humidity"])
+            _("temperature", self._weather["temperature"])
+            _("skyline", self._weather["skyline"])
+            _("weather", self._weather["weather"])
+            indent -= 1
+            __("/weather")
+        indent -= 1
+        __("/entry")
         return "\n".join(t)
 
 
-def newid():
-    return hex(random.randint(0, 256 ** DAYLYIDBYTES))[2:].zfill(40).upper()
-
-
-def import_media(entry_id, path, pretend=False):
-    ext = os.path.splitext(path)[1].lower()
-    if ext == ".jpg": pass
-    elif ext == ".jpeg": ext = ".jpg"
-    else: raise ValueError("photo must be *.jpg or *.jpeg")
-    while True:
-        newpath = os.path.join(DAYLYPHOTODIR, "{}_{}{}".format(
-                newid(), entry_id, ext))
-        if not os.path.exists(newpath): break
-    if pretend: print("----- copy {} to {}".format(path, newpath))
-    else: shutil.copy(path, newpath)
-    return os.path.basename(newpath)
-
-
-def get_altitude(latitude, longitude, unit=None):
-    return None
-
-
-def get_location(address=None, latitude=None, longitude=None, altitude=None,
-        language=None, altitude_unit=None):
-    if address:
-        try:
-            location = Geocoder.geocode(address, language=language)
-        except GeocoderError as e:
-            if e.args[0] == "ZERO_RESULTS":
-                return (address, None, None, None)
-            raise
-    else:
-        if not all([latitude, longitude]):
-            return ("unknown place", None, None, None)
-        try:
-            location = Geocoder.reverse_geocode(latitude, longitude,
-                    language=language)
-        except GeocoderError as e:
-            if e.args[0] == "ZERO_RESULTS":
-                return ("unknown place", latitude, longitude, None)
-            raise
-    address = location[0].formatted_address
-    latitude = location[0].latitude
-    longitude = location[0].longitude
-    altitude = get_altitude(latitude, longitude, unit=altitude_unit)
-    return (address, latitude, longitude, altitude)
-
-
-def get_weather(apikey, coordinates):
-    lat, lon = coordinates
-    url = OWM_QUERY.format(apikey=apikey, lat=lat, lon=lon)
-    try:
-        response = urlopen(url)
-    except URLError as e:
-        eprint("URLError: reason={}, code={}".format(
-                getattr(e, "reason", "unknown"),
-                getattr(e, "code", "unknown")))
-        return None
-    return json.loads(response.read().decode("utf-8"))
-
-
-def build_dayly_entry(unixtime, content,
-        timestamp=None,
-        address=None, latitude=None, longitude=None, altitude=None,
-        weather=None, skyline=None, temperature=None, humidity=None,
-        photopath=None,
+def build(timespec, content,
+        location=None,
+        photo=None,
         owmapikey=None,
         language=None,
-        pretend=False):
-    entry = DaylyEntry(newid())
-    if unixtime is None:
-        unixtime = time.time()
-    elif isinstance(unixtime, str):
-        unixtime = unixtime.translate(str.maketrans("T", " ", ":-"))
-        unixtime = time.mktime(time.strptime(unixtime, "%Y%m%d %H%M%S"))
-    elif isinstance(unixtime, time.struct_time):
-        unixtime = time.mktime(unixtime)
-    entry.datetime = unixtime
+        debug=False):
+    """Build a Dayly entry.
+
+    :param time.time timespec: date and time on which the entry describes
+    :param str content: entry text
+    :param str/tuple location: address or coordinates
+    :param str photo: pathname of the attached file (photo)
+    :param str owmapikey: the API key for OpenWeatherMap
+    :param str language: languaged used in the response from OpenWeatherMap
+    :param bool debug: True=only report; False=actually create an entry file
+    :rtype: str
+    :return: filename/pathname of the entry (virtually) created
+    """
+    entry = DaylyEntry(timespec, id=newid())
+    if debug: entry.debug = True
     entry.content = content
-    entry.timestamp = timestamp
-    if any([address, latitude, longitude, altitude]):
-        address, latitude, longitude, altitude = get_location(
-                address, latitude, longitude, altitude, language=language)
-        entry.set_location(address, latitude, longitude, altitude)
-        if owmapikey:
-            owm = get_weather(owmapikey, (latitude, longitude))
-            weather = " ".join(word.capitalize() for word
-                            in owm["weather"][0]["description"].split())
-            skyline = owm["weather"][0]["main"]
-            temperature = str(owm["main"]["temp"] - 273.15) + "C"
-            humidity = owm["main"]["humidity"] / 100.0
-    if any([weather, skyline, temperature, humidity]):
-        if temperature:
-            temperature = str(temperature)
-            if temperature.endswith("C"):
-                temperature = round(32 + float(temperature[:-1]) * 9 / 5, 2)
-            elif temperature.endswith("F"):
-                temperature = float(temperature[:-1])
-        if humidity:
-            humidity = str(humidity)
-            if humidity.endswith("%"):
-                humidity = float(humidity.rstrip("%")) / 100
-        entry.set_weather(humidity, temperature, skyline, weather)
-    if photopath:
-        path = import_media(entry.id, photopath, pretend=pretend)
-        entry.add_media(filename=path)
-    if pretend:
-        print(entry.filename())
-        for line in str(entry).splitlines():
-            print("| " + line)
+    entry.timestamp = -1  # ToDo:
+    if location:
+        entry.set_location(location, language=language)
+        if owmapikey: entry.set_weather(owmapikey)
+    if photo: entry.add_media(photo, description=description)
+    if debug:
+        for line in str(entry).splitlines(): print("| " + line)
+        return entry.filename()
     else:
         path = os.path.join(DAYLYENTRYDIR, entry.filename())
         with open(path, "w", encoding="utf-8") as out:
             out.write(str(entry))
-        print(path)
+        return path
 
 
 def getencoding(path):
@@ -277,12 +262,9 @@ def getencoding(path):
     coding = re.compile(r"coding[:=]\s*(\w)+")
     with open(path, encoding="ascii") as in_:
         for _ in (0, 1):
-            try:
-                mo = coding.search(in_.readline())
-            except UnicodeDecodeError:
-                continue
-            if mo:
-                return mo.group(0)
+            try: mo = coding.search(in_.readline())
+            except UnicodeDecodeError: continue
+            if mo: return mo.group(0)
     return None
 
 
@@ -293,39 +275,38 @@ def read_config(path):
     :rtype: configparser.ConfigParser
     :return: contents of the INI file
     """
-    import configparser
+    while os.path.islink(path): path = os.readlink(path)
+    path = os.path.realpath(path)
+    if not os.path.isfile(path): return None
     encoding = (getencoding(path) or "utf-8").replace("_", "-").lower()
     if encoding == "utf-8": encoding = "utf-8-sig"
-    conf = configparser.ConfigParser(dict(
-            language="en",
-            timezone=DEFAULT_TIMEZONE,
-            ))
+    conf = ConfigParser(dict(language="en", timezone=DEFAULT_TIMEZONE))
     conf.read(path, encoding=encoding)
     return conf
 
 
 def main(doc):
     import docopt
-    args = docopt.docopt(doc.format(script=__file__), version=__version__)
+    args = docopt.docopt(doc, version=__version__)
     try:
         conf = read_config(os.path.expanduser(args["--conf"]))
     except FileNotFoundError:
         conf = None
-    build_dayly_entry(args["--datetime"], sys.stdin.read().strip(),
-            timestamp=args["--timestamp"],
-            address=args["--address"],
-            latitude=args["--latitude"],
-            longitude=args["--longitude"],
-            altitude=args["--altitude"],
-            weather=args["--weather"],
-            skyline=args["--skyline"],
-            temperature=args["--temperature"],
-            humidity=args["--humidity"],
-            photopath=os.path.expanduser(args["--photo"] or ""),
+    location = args["LOCATION"] or "home"
+    if location:
+        try: location = conf.get("locations", location)
+        except NoOptionError: pass  # raw address
+    if location.startswith("("):
+        mo = re.match(LATLONPAT, location)
+        if not mo: raise ValueError("illegal coordinates")
+        location = (float(mo.group("lat")), float(mo.group("lon")))
+    build(args["--datetime"], sys.stdin.read().strip(),
+            location=location,
+            photo=os.path.expanduser(args["--photo"] or ""),
             owmapikey=conf.get("OpenWeatherMap", "apikey") if conf else None,
             language=args["--language"] or conf.get("dayly", "language"),
-            pretend=args["--debug"])
+            debug=args["--debug"])
 
 
 if __name__ == "__main__":
-    main(__doc__)
+    main(__doc__.format(script=__file__))

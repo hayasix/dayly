@@ -6,20 +6,25 @@
 Usage: {script} [options] [LOCATION]
 
 Options:
-    -h, --help              show this
-    --conf <path>           read settings from <path> [default: ~/.dayly]
-    --datetime <timespec>   set date and time for entry; YYYYmmddTHHMMSS
-    --photo <path>          attach photo
-    --language <lang>       set language for address/weather
-    --debug                 don't write actually
-    --version               show script version
-
-Location:
-    LOCATION is defined in the settings file specified with option --conf.
+  -h, --help                show this
+  -f, --conf=<path>         read settings from <path> [default: ~/.dayly]
+  -d, --date=<timespec>     set date and time for entry; YYYYmmddTHHMMSS
+  -p, --photo=<path>        attach photo
+  -l, --language=<lang>     set language for address/weather
+  --filename                print filename of entry created
+  --debug                   don't create entry actually
+  --version                 show version
 
 Time Zone:
     <timespec> does NOT have time zone; every <timespec> is deemed to be
     the local time.
+
+Location:
+    LOCATION can be defined in the settings file specified with option --conf.
+
+Weather History:
+    Weather history (or forecast) is not supported yet even if --date option
+    is given.  This problem is expected to be fixed in the near future.
 """
 
 
@@ -34,7 +39,7 @@ import geocoder
 import pyowm
 
 
-__version__ = "0.7.0"
+__version__ = "0.7.1"
 __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"
@@ -83,7 +88,7 @@ class DaylyEntry:
         else:
             dt = dt or time.time()
         self.datetime = dt
-        self.version = "1.0.3.3"
+        self.version = DAYLYVERSION
         self.generated = time.time()
         self._location = None
         self._weather = None
@@ -141,6 +146,15 @@ class DaylyEntry:
                 humidity=ww.get_humidity() / 100.0)
 
     def add_media(self, path, type="photo", description=""):
+        """Attach (add) a file to entry.
+
+        :param str path: pathname of source file
+        :param str type: type of attachment; 'photo'
+        :param str description:
+
+        Each attachment is copied into Dayly's photo repository dir.
+        The source file must be JPEG and has extension '.jpg' or '.jpeg'.
+        """
         ext = os.path.splitext(path)[1].lower()
         if ext == ".jpg": pass
         elif ext == ".jpeg": ext = ".jpg"
@@ -233,22 +247,21 @@ def build(timespec, content,
     :rtype: str
     :return: filename/pathname of the entry (virtually) created
     """
-    entry = DaylyEntry(timespec, id=newid())
+    entry = DaylyEntry(timespec, id=newid(), language=language)
     if debug: entry.debug = True
     entry.content = content
     entry.timestamp = -1  # ToDo:
     if location:
-        entry.set_location(location, language=language)
+        entry.set_location(location)
         if owmapikey: entry.set_weather(owmapikey)
     if photo: entry.add_media(photo, description=description)
     if debug:
         for line in str(entry).splitlines(): print("| " + line)
-        return entry.filename()
     else:
         path = os.path.join(DAYLYENTRYDIR, entry.filename())
         with open(path, "w", encoding="utf-8") as out:
             out.write(str(entry))
-        return path
+    return entry.filename()
 
 
 def getencoding(path):
@@ -285,9 +298,10 @@ def read_config(path):
     return conf
 
 
-def main(doc):
+def main():
     import docopt
-    args = docopt.docopt(doc, version=__version__)
+    args = docopt.docopt(__doc__.format(script=os.path.basename(__file__)),
+            version=__version__)
     try:
         conf = read_config(os.path.expanduser(args["--conf"]))
     except FileNotFoundError:
@@ -300,13 +314,16 @@ def main(doc):
         mo = re.match(LATLONPAT, location)
         if not mo: raise ValueError("illegal coordinates")
         location = (float(mo.group("lat")), float(mo.group("lon")))
-    build(args["--datetime"], sys.stdin.read().strip(),
+    filename = build(
+            args["--date"],
+            sys.stdin.read().strip(),
             location=location,
             photo=os.path.expanduser(args["--photo"] or ""),
             owmapikey=conf.get("OpenWeatherMap", "apikey") if conf else None,
             language=args["--language"] or conf.get("dayly", "language"),
             debug=args["--debug"])
+    if args["--filename"]: print(filename)
 
 
 if __name__ == "__main__":
-    main(__doc__.format(script=__file__))
+    sys.exit(main())

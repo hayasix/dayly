@@ -2,6 +2,8 @@ include dayly.py
 include setup.py
 include README.rst
 include LICENSE
-prune build dist *.egg-info __pycache__
-prune .*
-prune MANIFEST
+exclude .*
+prune build
+prune dist
+prune *.egg-info
+prune __pycache__

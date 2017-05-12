@@ -45,7 +45,7 @@ __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"
 __email__ = "linxs@linxs.org"
-__status__ = "Development"
+__status__ = "Beta"
 __description__ = "A console version of Dayly diary app"
 
 DAYLYVERSION = "1.0.3.3"

@@ -21,10 +21,10 @@ Usage
 Dropbox Folder
 ==============
 
-``dayly`` assumes that you runs Dayly with sync via Dropbox.  The sync
-directory must be ``~/Dropbox/Apps/Dayly``.  Otherwise, you have to
-modify the source code, ``dayly.py``.  This limitation will be removed
-in the near future.
+``dayly`` assumes that you are running Dayly with sync via Dropbox.
+The sync directory must be ``~/Dropbox/Apps/Dayly``.  Otherwise, you
+have to modify the source code, ``dayly.py``.  This limitation will be
+removed in the near future.
 
 API Key
 =======

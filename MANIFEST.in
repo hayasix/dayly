@@ -1,0 +1,7 @@
+include dayly.py
+include setup.py
+include README.rst
+include LICENSE
+prune build dist *.egg-info __pycache__
+prune .*
+prune MANIFEST

@@ -18,6 +18,14 @@ Installation
 Usage
 -----
 
+Dropbox Folder
+==============
+
+``dayly`` assumes that you runs Dayly with sync via Dropbox.  The sync
+directory must be ``~/Dropbox/Apps/Dayly``.  Otherwise, you have to
+modify the source code, ``dayly.py``.  This limitation will be removed
+in the near future.
+
 API Key
 =======
 
@@ -112,7 +120,17 @@ Known Problems
 
 -   ``dayly`` can only post a new entry.  This is the specification.
 
+-   Location of Dropbox sync folder is hard-coded and cannot be replaced
+    by option.  This problem will be fixed in the near future.
+
 -   The date and time specified by option --date are ignored to in
     accessing OpenWeatherMap.  Only the current weather information
     is provided.  This problem will be fixed in the near future.
 
+-----------
+Legal Stuff
+-----------
+
+(C) 2017 HAYASI Hideki <linxs@linxs.org>.
+
+This program is licensed under ZPL 2.1.  See ``LICENSE``.

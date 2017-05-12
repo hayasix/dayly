@@ -40,7 +40,7 @@ import geocoder
 import pyowm
 
 
-__version__ = "0.7.3"
+__version__ = "0.7.4"
 __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"
@@ -308,6 +308,8 @@ def main():
         conf = read_config(os.path.expanduser(args["--conf"]))
     except FileNotFoundError:
         conf = None
+    if not conf:
+        raise FileNotFoundError("prepare ~/.dayly before use")
     location = args["LOCATION"] or "home"
     if location:
         try: location = conf.get("locations", location)

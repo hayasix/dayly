@@ -33,18 +33,20 @@ import os
 import shutil
 import time
 import random
+import re
 from configparser import ConfigParser, NoOptionError
 
 import geocoder
 import pyowm
 
 
-__version__ = "0.7.1"
+__version__ = "0.7.2"
 __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"
 __email__ = "linxs@linxs.org"
 __status__ = "Development"
+__description__ = "A console version of Dayly diary app"
 
 DAYLYVERSION = "1.0.3.3"
 DAYLYIDBYTES = 20

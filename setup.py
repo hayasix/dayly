@@ -4,10 +4,10 @@
 from setuptools import setup
 from os.path import join, dirname, exists
 
-from dayly import \
-        __author__, __copyright__, __license__, __version__, __email__, \
-        __doc__ as doc
-
+with open("dayly.py", "r") as in_:
+    for line in in_:
+        if line.startswith("def ") or line.startswith("class "): break
+        if line.startswith("__"): exec(line)
 
 def read_readme(readme):
     return open(join(dirname(__file__), readme), encoding="utf-8").read()
@@ -20,7 +20,7 @@ setup(
     author_email = __email__,
     url = "https://github.com/linxsorg/dayly",
     license = __license__,
-    description = doc.splitlines()[0].split(":", 1)[1],
+    description = __description__,
     long_description = read_readme("README.rst"),
     platforms = ["generic"],
     py_modules = ["dayly"],
@@ -31,7 +31,7 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.5",
         "License :: OSI Approved :: Zope Public License",
-        "Development Status :: 4 - Development",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Natural Language :: Japanese",
         "Operating System :: OS Independent",

@@ -8,11 +8,13 @@ Dayly is a DayOne-like diary app compatible with iOS, Android and
 BlackBerry.  It syncs with Dropbox, so we can post an entry via this
 program.  For more information, visit: http://miciniti.com/blog/
 
+
 ------------
 Installation
 ------------
 
 ``pip install dayly``
+
 
 -----
 Usage
@@ -22,9 +24,8 @@ Dropbox Folder
 ==============
 
 ``dayly`` assumes that you are running Dayly with sync via Dropbox.
-The sync directory must be ``~/Dropbox/Apps/Dayly``.  Otherwise, you
-have to modify the source code, ``dayly.py``.  This limitation will be
-removed in the near future.
+By default the sync directory is ``~/Dropbox/Apps/Dayly``.  You can
+change it in the setting file ``.dayly`` described below.
 
 API Key
 =======
@@ -42,7 +43,7 @@ should be comply with ordinary ``.ini`` format.  You can change the
 location and the name of ``.dayly`` later by option.
 
 In ``.dayly``, prepare ``[OpenWeatherMap]`` section and store your OWM
-API key as following::
+API key as follows::
 
     [OpenWeatherMap]
     apikey=0123456789abcdef0123456789abcdef
@@ -54,16 +55,29 @@ Now you can issue ``dayly`` command.  To get help, ``dayly -h``.
 
 For now, ``dayly`` can only post a new entry.
 
+
 -------------
 Customization
 -------------
 
+Dropbox sync folder
+===================
+
+Dropbox sync folder for Dayly can be assigned as follows::
+
+    [dayly]
+    syncdir=/your/favorite/directory
+
+    [OpenWeatherMap]
+    apikey=0123456789abcdef0123456789abcdef
+
 Language
 ========
 
-Set your favorite language in ``.dayly`` like this::
+Set your favorite language in ``.dayly`` as follows::
 
     [dayly]
+    syncdir=/your/favorite/directory
     language=ja  ; zh, en, hi, es, ar, ...
 
     [OpenWeatherMap]
@@ -76,9 +90,10 @@ option.
 Locations
 =========
 
-Your favorite locations can be registered in ``.dayly`` like this::
+Your favorite locations can be registered in ``.dayly`` as follows::
 
     [dayly]
+    syncdir=/your/favorite/directory
     language=ja  ; zh, en, hi, es, ar, ...
 
     [OpenWeatherMap]
@@ -120,17 +135,14 @@ Known Problems
 
 -   ``dayly`` can only post a new entry.  This is the specification.
 
--   Location of Dropbox sync folder is hard-coded and cannot be replaced
-    by option.  This problem will be fixed in the near future.
-
--   The date and time specified by option --date are ignored to in
-    accessing OpenWeatherMap.  Only the current weather information
-    is provided.  This problem will be fixed in the near future.
+-   Weather information is not given if more than 3 hours have passed
+    since the time specified by option --date.  Note that ``--date
+    20171231`` is same as ``--date 20171231T000000``.
 
 -----------
 Legal Stuff
 -----------
 
-(C) 2017 HAYASI Hideki <linxs@linxs.org>.
+Copyright (C) 2017 HAYASI Hideki <linxs@linxs.org>.
 
 This program is licensed under ZPL 2.1.  See ``LICENSE``.

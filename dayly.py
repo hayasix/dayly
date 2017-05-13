@@ -40,7 +40,7 @@ import geocoder
 import pyowm
 
 
-__version__ = "0.7.5"
+__version__ = "0.8.0a1"
 __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"
@@ -50,9 +50,6 @@ __description__ = "A console version of Dayly diary app"
 
 DAYLYVERSION = "1.0.3.3"
 DAYLYIDBYTES = 20
-DAYLYDIR = os.path.expanduser("~/Dropbox/Apps/Dayly")
-DAYLYPHOTODIR = DAYLYDIR + "/photos"
-DAYLYENTRYDIR = DAYLYDIR + "/entries"
 
 DEFAULT_TIMEZONE = "Asia/Tokyo"
 
@@ -81,10 +78,15 @@ def newid():
 class DaylyEntry:
     """Dayly entry"""
 
+    syncdir = os.path.expanduser("~/Dropbox/Apps/Dayly")
+
     def __init__(self, dt, id=None, language=None):
         if isinstance(dt, str):
             dt = dt.translate(str.maketrans("T", " ", ":-"))
-            dt = time.mktime(time.strptime(dt, "%Y%m%d %H%M%S"))
+            try:
+                dt = time.mktime(time.strptime(dt, "%Y%m%d %H%M%S"))
+            except ValueError:
+                dt = time.mktime(time.strptime(dt, "%Y%m%d"))
         elif isinstance(dt, time.struct_time):
             dt = time.mktime(dt)
         else:
@@ -102,8 +104,8 @@ class DaylyEntry:
     def filename(self):
         return self.id + ".entry"
 
-    def set_location(self, location, language=None,
-            altitude=None, unit="meters"):
+    def set_location(self, location,
+                     language=None, altitude=None, unit="meters"):
         """Set location via Google geocoding service.
 
         :param tuple/str location:
@@ -118,7 +120,8 @@ class DaylyEntry:
         if isinstance(location, tuple):
             kw["method"] = "reverse"
         location = geocoder.google(location, **kw)
-        if not location.ok: raise ValueError("unknown place")
+        if not location.ok:
+            raise ValueError("unknown place")
         address = location.address
         if not altitude:
             altitude = getattr(geocoder.elevation(location.latlng), unit)
@@ -142,7 +145,7 @@ class DaylyEntry:
         ww = w.get_weather()
         self._weather = dict(
                 weather=" ".join(word.capitalize() for word
-                        in ww.get_detailed_status().split()),
+                                 in ww.get_detailed_status().split()),
                 skyline=ww.get_status(),
                 temperature=ww.get_temperature("fahrenheit")["temp"],
                 humidity=ww.get_humidity() / 100.0)
@@ -158,15 +161,21 @@ class DaylyEntry:
         The source file must be JPEG and has extension '.jpg' or '.jpeg'.
         """
         ext = os.path.splitext(path)[1].lower()
-        if ext == ".jpg": pass
-        elif ext == ".jpeg": ext = ".jpg"
-        else: raise ValueError("photo must be *.jpg or *.jpeg")
+        if ext == ".jpg":
+            pass
+        elif ext == ".jpeg":
+            ext = ".jpg"
+        else:
+            raise ValueError("photo must be *.jpg or *.jpeg")
         while True:
             newfile = "{}_{}{}".format(newid(), self.id, ext)
-            newpath = os.path.join(DAYLYPHOTODIR, newfile)
-            if not os.path.exists(newpath): break
-        if self.debug: print("----- copy {} to {}".format(path, newpath))
-        else: shutil.copy(path, newpath)
+            newpath = os.path.join(self.__class__.syncdir, "photos", newfile)
+            if not os.path.exists(newpath):
+                break
+        if self.debug:
+            print("----- copy {} to {}".format(path, newpath))
+        else:
+            shutil.copy(path, newpath)
         self._media.append(dict(
             type=type,
             filename=newfile,
@@ -175,16 +184,22 @@ class DaylyEntry:
     def __str__(self):
         t = []
         indent = 0
+
         def _(k, v=None):
             v = v or getattr(self, k, "")
-            if v is None: v = "nan"
+            if v is None:
+                v = "nan"
             t.append("{i}<{k}>{v}</{k}>".format(i=" " * indent, k=k, v=v))
+
         def __(k):
             t.append("{i}<{k}>".format(i=" " * indent, k=k))
+
         def getattrs(*names):
             for name in names:
                 v = getattr(self, name, None)
-                if v: return v
+                if v:
+                    return v
+
         __("entry")
         indent += 1
         _("version")
@@ -230,13 +245,19 @@ class DaylyEntry:
         __("/entry")
         return "\n".join(t)
 
+    def save(self):
+        path = os.path.join(self.__class__.syncdir, "entries", self.filename())
+        with open(path, "w", encoding="utf-8") as out:
+            out.write(str(self))
+
 
 def build(timespec, content,
-        location=None,
-        photo=None,
-        owmapikey=None,
-        language=None,
-        debug=False):
+          location=None,
+          photo=None,
+          owmapikey=None,
+          language=None,
+          syncdir=None,
+          debug=False):
     """Build a Dayly entry.
 
     :param time.time timespec: date and time on which the entry describes
@@ -245,24 +266,29 @@ def build(timespec, content,
     :param str photo: pathname of the attached file (photo)
     :param str owmapikey: the API key for OpenWeatherMap
     :param str language: languaged used in the response from OpenWeatherMap
+    :param str syncdir: Dropbox sync directory
     :param bool debug: True=only report; False=actually create an entry file
     :rtype: str
     :return: filename/pathname of the entry (virtually) created
     """
+    if syncdir:
+        DaylyEntry.syncdir = os.path.expanduser(syncdir)
     entry = DaylyEntry(timespec, id=newid(), language=language)
-    if debug: entry.debug = True
+    if debug:
+        entry.debug = True
     entry.content = content
     entry.timestamp = -1  # ToDo:
     if location:
         entry.set_location(location)
-        if owmapikey: entry.set_weather(owmapikey)
-    if photo: entry.add_media(photo, description=description)
+        if owmapikey and (0 <= time.time() - entry.datetime <= 10800):  # in 3H
+            entry.set_weather(owmapikey)
+    if photo:
+        entry.add_media(photo, description=description)
     if debug:
-        for line in str(entry).splitlines(): print("| " + line)
+        for line in str(entry).splitlines():
+            print("| " + line)
     else:
-        path = os.path.join(DAYLYENTRYDIR, entry.filename())
-        with open(path, "w", encoding="utf-8") as out:
-            out.write(str(entry))
+        entry.save()
     return entry.filename()
 
 
@@ -277,9 +303,12 @@ def getencoding(path):
     coding = re.compile(r"coding[:=]\s*(\w)+")
     with open(path, encoding="ascii") as in_:
         for _ in (0, 1):
-            try: mo = coding.search(in_.readline())
-            except UnicodeDecodeError: continue
-            if mo: return mo.group(0)
+            try:
+                mo = coding.search(in_.readline())
+            except UnicodeDecodeError:
+                continue
+            if mo:
+                return mo.group(0)
     return None
 
 
@@ -290,11 +319,14 @@ def read_config(path):
     :rtype: configparser.ConfigParser
     :return: contents of the INI file
     """
-    while os.path.islink(path): path = os.readlink(path)
+    while os.path.islink(path):
+        path = os.readlink(path)
     path = os.path.realpath(path)
-    if not os.path.isfile(path): return None
+    if not os.path.isfile(path):
+        return None
     encoding = (getencoding(path) or "utf-8").replace("_", "-").lower()
-    if encoding == "utf-8": encoding = "utf-8-sig"
+    if encoding == "utf-8":
+        encoding = "utf-8-sig"
     conf = ConfigParser(dict(language="en", timezone=DEFAULT_TIMEZONE))
     conf.read(path, encoding=encoding)
     return conf
@@ -303,20 +335,27 @@ def read_config(path):
 def main():
     import docopt
     args = docopt.docopt(__doc__.format(script=os.path.basename(__file__)),
-            version=__version__)
+                         version=__version__)
     try:
         conf = read_config(os.path.expanduser(args["--conf"]))
     except FileNotFoundError:
         conf = None
     if not conf:
         raise FileNotFoundError("prepare ~/.dayly before use")
+    try:
+        syncdir = conf.get("dayly", "syncdir")
+    except NoOptionError:
+        syncdir = None
     location = args["LOCATION"] or "home"
     if location:
-        try: location = conf.get("locations", location)
-        except NoOptionError: pass  # raw address
+        try:
+            location = conf.get("locations", location)
+        except NoOptionError:
+            pass  # raw address
     if location.startswith("("):
         mo = re.match(LATLONPAT, location)
-        if not mo: raise ValueError("illegal coordinates")
+        if not mo:
+            raise ValueError("illegal coordinates")
         location = (float(mo.group("lat")), float(mo.group("lon")))
     filename = build(
             args["--date"],
@@ -325,8 +364,10 @@ def main():
             photo=os.path.expanduser(args["--photo"] or ""),
             owmapikey=conf.get("OpenWeatherMap", "apikey") if conf else None,
             language=args["--language"] or conf.get("dayly", "language"),
+            syncdir=syncdir,
             debug=args["--debug"])
-    if args["--filename"]: print(filename)
+    if args["--filename"]:
+        print(filename)
 
 
 if __name__ == "__main__":

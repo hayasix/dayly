@@ -40,7 +40,7 @@ import geocoder
 import pyowm
 
 
-__version__ = "0.8.0a1"
+__version__ = "0.8.0a2"
 __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"
@@ -189,7 +189,10 @@ class DaylyEntry:
             v = v or getattr(self, k, "")
             if v is None:
                 v = "nan"
-            t.append("{i}<{k}>{v}</{k}>".format(i=" " * indent, k=k, v=v))
+            t.append("{i}<{k}>{v}</{k}>".format(
+                     i=" " * indent,
+                     k=k,
+                     v=sanitized(str(v))))
 
         def __(k):
             t.append("{i}<{k}>".format(i=" " * indent, k=k))
@@ -205,7 +208,7 @@ class DaylyEntry:
         _("version")
         _("generated", int(getattrs("generated", "datetime")))
         _("id")
-        _("content", sanitized(self.content))
+        _("content", self.content)
         _("datetime", int(getattrs("datetime", "generated")))
         _("timestamp", int(getattrs("timestamp") or -1))
         _("flags", "0")

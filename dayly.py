@@ -15,16 +15,14 @@ Options:
   --debug                   don't create entry actually
   --version                 show version
 
-Time Zone:
-    <timespec> does NOT have time zone; every <timespec> is deemed to be
-    the local time.
-
 Location:
-    LOCATION can be defined in the settings file specified with option --conf.
+  LOCATION can be defined in the settings file specified with option --conf.
 
-Weather History:
-    Weather history (or forecast) is not supported yet even if --date option
-    is given.  This problem is expected to be fixed in the near future.
+Restrictions:
+  - <timespec> does NOT have the time zone; every <timespec> is deemed to be
+    the local time.
+  - Weather information is not given if more than 3 hours have passed since
+    the time specified by option --date.
 """
 
 
@@ -40,7 +38,7 @@ import geocoder
 import pyowm
 
 
-__version__ = "0.8.0a2"
+__version__ = "0.8.0a3"
 __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"

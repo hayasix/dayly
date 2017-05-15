@@ -9,9 +9,9 @@ Options:
   -h, --help                show this
   -f, --conf=<path>         read settings from <path> [default: ~/.dayly]
   -d, --date=<timespec>     set date and time for entry; YYYYmmddTHHMMSS
-  -p, --photo=<path>        attach photo
+  -p, --photo=<path>        attach JPEG photo
   -l, --language=<lang>     set language for address/weather
-  --filename                print filename of entry created
+  --filename                print filename of entry (virtually) created
   --debug                   don't create entry actually
   --version                 show version
 
@@ -34,7 +34,7 @@ import geocoder
 import pyowm
 
 
-__version__ = "0.8.0.post1"
+__version__ = "0.8.0.post2"
 __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"

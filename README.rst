@@ -38,7 +38,7 @@ https://home.openweathermap.org/users/sign_up
 Settings
 ========
 
-Place a text file named ``.dayly`` in your home directory.  This file
+Create a text file named ``.dayly`` in your home directory.  This file
 should be comply with ordinary ``.ini`` format.  You can change the
 location and the name of ``.dayly`` later by option.
 
@@ -129,20 +129,37 @@ So ``echo Hi! | dayly --debug en home`` gives a virtual entry like this::
     |  </weather>
     | </entry>
 
---------------
-Known Problems
---------------
-
--   ``dayly`` can only post a new entry.  This is the specification.
-
--   Weather information is not given if more than 3 hours have passed
-    since the time specified by option --date.  Note that ``--date
-    20171231`` is same as ``--date 20171231T000000``.
 
 -----------
-Legal Stuff
+Limitations
 -----------
+
+Actions
+=======
+
+This program only posts a new entry; browse, search or any other actions
+are not supported.
+
+Tize zone
+=========
+
+Time zone is not supported for option ``--date``.
+
+Weather Information
+===================
+
+Historical weather information is not supported.
+
+Weather information is not given if more than 3 hours have passed since
+the time specified by option --date.  Note that ``--date 20171231`` is
+equivalent to ``--date 20171231T000000``.
+
+
+-------
+License
+-------
 
 Copyright (C) 2017 HAYASI Hideki <linxs@linxs.org>.
 
-This program is licensed under ZPL 2.1.  See ``LICENSE``.
+This program is licensed under Zope Public License (ZPL) Version 2.1.
+See ``LICENSE`` for details.

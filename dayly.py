@@ -15,14 +15,10 @@ Options:
   --debug                   don't create entry actually
   --version                 show version
 
-Location:
-  LOCATION can be defined in the settings file specified with option --conf.
-
-Restrictions:
-  - <timespec> does NOT have the time zone; every <timespec> is deemed to be
-    the local time.
-  - Weather information is not given if more than 3 hours have passed since
-    the time specified by option --date.
+Note:
+  Weather information is not given if more than 3 hours have passed since
+  the time specified by option --date.  Note that ``--date 20171231`` is
+  equivalent to ``--date 20171231T000000``.
 """
 
 
@@ -38,7 +34,7 @@ import geocoder
 import pyowm
 
 
-__version__ = "0.8.0a3"
+__version__ = "0.8.0"
 __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"
@@ -79,6 +75,12 @@ class DaylyEntry:
     syncdir = os.path.expanduser("~/Dropbox/Apps/Dayly")
 
     def __init__(self, dt, id=None, language=None):
+        """Initiator.
+
+        :param str/struct_time dt: entry date and time
+        :param str id: entry ID (40 hexadecimal digits)
+        :param str language: language for address/weather information
+        """
         if isinstance(dt, str):
             dt = dt.translate(str.maketrans("T", " ", ":-"))
             try:
@@ -100,6 +102,7 @@ class DaylyEntry:
         self.debug = False
 
     def filename(self):
+        """Get the filename of entry."""
         return self.id + ".entry"
 
     def set_location(self, location,
@@ -181,19 +184,27 @@ class DaylyEntry:
 
     def __str__(self):
         t = []
-        indent = 0
+        indent_level = 0
+
+        def indent():
+            nonlocal indent_level
+            indent_level += 1
+
+        def dedent():
+            nonlocal indent_level
+            indent_level -= 1
 
         def _(k, v=None):
             v = v or getattr(self, k, "")
             if v is None:
                 v = "nan"
             t.append("{i}<{k}>{v}</{k}>".format(
-                     i=" " * indent,
+                     i=" " * indent_level,
                      k=k,
                      v=sanitized(str(v))))
 
         def __(k):
-            t.append("{i}<{k}>".format(i=" " * indent, k=k))
+            t.append("{i}<{k}>".format(i=" " * indent_level, k=k))
 
         def getattrs(*names):
             for name in names:
@@ -202,7 +213,7 @@ class DaylyEntry:
                     return v
 
         __("entry")
-        indent += 1
+        indent()
         _("version")
         _("generated", int(getattrs("generated", "datetime")))
         _("id")
@@ -213,40 +224,41 @@ class DaylyEntry:
         _("status", "1")
         if self._location:
             __("location")
-            indent += 1
+            indent()
             _("address", self._location["address"])
             _("latitude", self._location["latitude"])
             _("longitude", self._location["longitude"])
             _("altitude", self._location["altitude"])
-            indent -= 1
+            dedent()
             __("/location")
         if self._media:
             __("<media>")
-            indent += 1
+            indent()
             for m in self._media:
                 __("item")
-                indent += 1
+                indent()
                 _("type", m["type"])
                 _("file", m["filename"])
                 _("description", m["description"])
-                indent -= 1
+                dedent()
                 __("/item")
-            indent -= 1
+            dedent()
             __("/media")
         if self._weather:
             __("weather")
-            indent += 1
+            indent()
             _("humidity", self._weather["humidity"])
             _("temperature", self._weather["temperature"])
             _("skyline", self._weather["skyline"])
             _("weather", self._weather["weather"])
-            indent -= 1
+            dedent()
             __("/weather")
-        indent -= 1
+        dedent()
         __("/entry")
         return "\n".join(t)
 
     def save(self):
+        """Save i.e. actually write a file of entry."""
         path = os.path.join(self.__class__.syncdir, "entries", self.filename())
         with open(path, "w", encoding="utf-8") as out:
             out.write(str(self))

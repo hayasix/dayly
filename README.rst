@@ -84,13 +84,12 @@ Set your favorite language in ``.dayly`` as follows::
     apikey=0123456789abcdef0123456789abcdef
 
 The language set above will be applied during geocoding and getting
-weather information.  You can change your favorite language later by
-option.
+weather information.  You can change your language later by option.
 
 Locations
 =========
 
-Your favorite locations can be registered in ``.dayly`` as follows::
+Your favorite locations can be defined in ``.dayly`` as follows::
 
     [dayly]
     syncdir=/your/favorite/directory
@@ -104,7 +103,7 @@ Your favorite locations can be registered in ``.dayly`` as follows::
     office=1600 Pennsylvania Avenue NW Washington, D.C. 20500 U.S.
     villa=(-14.692110, -75.148877)  ; (latitude, longitude)
 
-So ``echo Hi! | dayly --debug en home`` gives a virtual entry like this::
+So ``echo Hi! | dayly --debug home`` gives a virtual entry like this::
 
     | <entry>
     |  <version>1.0.3.3</version>
@@ -140,7 +139,7 @@ Actions
 This program only posts a new entry; browse, search or any other actions
 are not supported.
 
-Tize zone
+Time zone
 =========
 
 Time zone is not supported for option ``--date``.

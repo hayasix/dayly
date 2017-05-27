@@ -4,8 +4,8 @@ dayly
 
 A Dayly client in Python 3.
 
-Dayly is a DayOne-like diary app compatible with iOS, Android and
-BlackBerry.  It syncs with Dropbox, so we can post an entry via this
+Dayly is a DayOne-like diary app compatible with iOS, Android, BlackBerry
+and Windows Phone.  It syncs via Dropbox, so we can post entries with this
 program.  For more information, visit: http://miciniti.com/blog/
 
 
@@ -53,7 +53,7 @@ Command
 
 Now you can issue ``dayly`` command.  To get help, ``dayly -h``.
 
-For now, ``dayly`` can only post a new entry.
+For now, ``dayly`` can only post new entries.
 
 
 -------------
@@ -150,7 +150,7 @@ Weather Information
 Historical weather information is not supported.
 
 Weather information is not given if more than 3 hours have passed since
-the time specified by option --date.  Note that ``--date 20171231`` is
+the time specified by option ``--date``.  Note that ``--date 20171231`` is
 equivalent to ``--date 20171231T000000``.
 
 

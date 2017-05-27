@@ -28,13 +28,14 @@ import shutil
 import time
 import random
 import re
+import unicodedata
 from configparser import ConfigParser, NoOptionError
 
 import geocoder
 import pyowm
 
 
-__version__ = "0.8.0.post2"
+__version__ = "0.8.0.post3"
 __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"
@@ -44,10 +45,10 @@ __description__ = "A console version of Dayly diary app"
 
 DAYLYVERSION = "1.0.3.3"
 DAYLYIDBYTES = 20
-
 DEFAULT_TIMEZONE = "Asia/Tokyo"
-
 LATLONPAT = r"\((?P<lat>[+\-]?\d*(\.\d*)?), *(?P<lon>[+\-]?\d*(\.\d*)?)\)"
+FWHYPHEN = "\u2022"
+HWHYPHEN = "\uFF0D"
 
 
 def sanitized(s):
@@ -120,16 +121,22 @@ class DaylyEntry:
         kw = {"language": language}
         if isinstance(location, tuple):
             kw["method"] = "reverse"
-        location = geocoder.google(location, **kw)
+        try:
+            location = geocoder.google(location, **kw)
+        except:
+            self._location = dict(
+                    address=location,
+                    latitude=None, longitude=None, altitude=None)
+            return
         if not location.ok:
             raise ValueError("unknown place")
-        address = location.address
+        address = unicodedata.normalize(
+                    "NFKC", location.address.replace(FWHYPHEN, HWHYPHEN))
         if not altitude:
             altitude = getattr(geocoder.elevation(location.latlng), unit)
         self._location = dict(
                 address=address,
-                latitude=location.latlng[0],
-                longitude=location.latlng[1],
+                latitude=location.latlng[0], longitude=location.latlng[1],
                 altitude=altitude)
 
     def set_weather(self, apikey, language=None):
@@ -138,8 +145,15 @@ class DaylyEntry:
         :param str apikey: OpenWeatherMap API key
         :param str language: language e.g. 'en', 'ja'
         """
+        if not all((self._location["latitude"], self._location["longitude"])):
+            return
         language = language or self.language
-        owm = pyowm.OWM(apikey, language=language)
+        try:
+            owm = pyowm.OWM(apikey, language=language)
+        except:
+            if hasattr(self, "_weather"):
+                del self._weather
+            return
         w = owm.weather_at_coords(
                 lat=self._location["latitude"],
                 lon=self._location["longitude"])
@@ -305,6 +319,30 @@ def build(timespec, content,
     return entry.filename()
 
 
+def getmetainfo(content):
+    """Get meta information from content text.
+
+    :param str content: source text
+    :rtype tuple:
+    :return: (timespec, location, pure_content)
+    """
+    timespec = location = None
+    lines = content.splitlines()
+    for i, line in enumerate(lines):
+        if 1 < i:
+            break
+        if not line:
+            continue
+        if line.startswith("!"):
+            timespec = line[1:].strip()
+            lines[i] = None
+        elif line.startswith("@"):
+            location = line[1:].strip()
+            lines[i] = None
+    return (timespec, location,
+            "\n".join(line for line in lines if line is not None))
+
+
 def getencoding(path):
     """Detect encoding string from the leading two lines.
 
@@ -359,7 +397,9 @@ def main():
         syncdir = conf.get("dayly", "syncdir")
     except NoOptionError:
         syncdir = None
-    location = args["LOCATION"] or "home"
+    timespec, location, content = getmetainfo(sys.stdin.read().strip())
+    timespec = args["--date"] or timespec
+    location = args["LOCATION"] or location or "home"
     if location:
         try:
             location = conf.get("locations", location)
@@ -371,8 +411,7 @@ def main():
             raise ValueError("illegal coordinates")
         location = (float(mo.group("lat")), float(mo.group("lon")))
     filename = build(
-            args["--date"],
-            sys.stdin.read().strip(),
+            timespec, content,
             location=location,
             photo=os.path.expanduser(args["--photo"] or ""),
             owmapikey=conf.get("OpenWeatherMap", "apikey") if conf else None,

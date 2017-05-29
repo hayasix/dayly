@@ -128,6 +128,18 @@ So ``echo Hi! | dayly --debug home`` gives a virtual entry like this::
     |  </weather>
     | </entry>
 
+-------------------------
+Embedded Meta Information
+-------------------------
+
+The date, time and/or location of an entry can be specified in the first or
+second line of the content text as follows::
+
+    !2017-12-31 23:59:59
+    @home
+    This is the content body.  This entry has its locatin 'home' (defined in
+    the setting file described above) and its date/time 2017-12-31 23:59:59
+    in YYYY-MM-DD HH:MM:SS format.
 
 -----------
 Limitations

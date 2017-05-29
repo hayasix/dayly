@@ -35,7 +35,7 @@ import geocoder
 import pyowm
 
 
-__version__ = "0.8.0.post3"
+__version__ = "0.9.0"
 __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"

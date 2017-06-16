@@ -141,6 +141,9 @@ second line of the content text as follows::
     the setting file described above) and its date/time 2017-12-31 23:59:59
     in YYYY-MM-DD HH:MM:SS format.
 
+``!2017-12-31 23:59:59`` is equivalent to ``Date: 2017-12-31 23:59:59``,
+and so is ``@home`` to ``Location: home``.
+
 -----------
 Limitations
 -----------

@@ -34,6 +34,7 @@ setup(
         "Programming Language :: Python :: 3.3",
         "Programming Language :: Python :: 3.4",
         "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
         "Development Status :: 4 - Beta",
         "Topic :: Office/Business :: News/Diary",
         "Intended Audience :: End Users/Desktop",

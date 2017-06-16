@@ -35,7 +35,7 @@ import geocoder
 import pyowm
 
 
-__version__ = "0.9.0"
+__version__ = "0.9.1"
 __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"
@@ -325,6 +325,17 @@ def getmetainfo(content):
     :param str content: source text
     :rtype tuple:
     :return: (timespec, location, pure_content)
+
+    Meta information must be placed on the first or the second line.
+    Available options are as follows::
+
+        !20171231T235959
+        @home
+
+    or::
+
+        Date: 2017-12-31 23:59:59
+        Location: home
     """
     timespec = location = None
     lines = content.splitlines()
@@ -335,10 +346,15 @@ def getmetainfo(content):
             continue
         if line.startswith("!"):
             timespec = line[1:].strip()
-            lines[i] = None
+        elif ":" in line and line.split(":", 1)[0].upper() == "DATE":
+            timespec = line.split(":", 1)[1].strip()
         elif line.startswith("@"):
             location = line[1:].strip()
-            lines[i] = None
+        elif ":" in line and line.split(":", 1)[0].upper() == "LOCATION":
+            location = line.split(":", 1)[1].strip()
+        else:
+            continue
+        lines[i] = None
     return (timespec, location,
             "\n".join(line for line in lines if line is not None))
 

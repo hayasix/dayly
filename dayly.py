@@ -35,7 +35,7 @@ import geocoder
 import pyowm
 
 
-__version__ = "0.9.1"
+__version__ = "0.9.2"
 __author__ = "HAYASI Hideki"
 __copyright__ = "Copyright (C) 2017 HAYASI Hideki"
 __license__ = "ZPL 2.1"
@@ -191,6 +191,7 @@ class DaylyEntry:
             print("----- copy {} to {}".format(path, newpath))
         else:
             shutil.copy(path, newpath)
+        if type == "photo": type += "s"
         self._media.append(dict(
             type=type,
             filename=newfile,
